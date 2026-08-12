@@ -1,0 +1,4 @@
+# PS-87 NLP development/test dependencies.
+# Install for local NLP work: pip install -r nlp/requirements.txt -r nlp/requirements-dev.txt
+# pytest is also pinned in backend/requirements.txt for backend tests.
+pytest==7.4.3
