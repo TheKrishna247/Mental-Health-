@@ -1,0 +1,2 @@
+# PS-87 ML development/test dependencies.
+pytest==7.4.3
