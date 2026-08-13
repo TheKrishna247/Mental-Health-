@@ -1,4 +1,20 @@
 ﻿"""
-PS-87 placeholder.
-Implementation will be added in the relevant development task.
+Top-level PS-87 ML training entry point.
+
+Usage:
+    python ml/train.py
 """
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from ml.src.training.train import main
+
+if __name__ == "__main__":
+    main()
