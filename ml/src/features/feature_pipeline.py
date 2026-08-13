@@ -98,7 +98,11 @@ class DiaryRecord:
 
 @dataclass
 class StudentFeatureInput:
-    """Internal ML input bundle for one student at a reference time."""
+    """Internal ML input bundle for one student at a reference time.
+
+    ``as_of`` is required when calling ``build_feature_vector()`` so the
+    7-day observation window is deterministic for inference/integration.
+    """
 
     phq9_score: int | None = None
     gad7_score: int | None = None
@@ -282,8 +286,16 @@ def build_feature_vector(student: StudentFeatureInput) -> dict[str, float]:
 
     Missing questionnaires use norm=0.0 with missing=1.0 so the model can
     distinguish absence from a genuine zero score (missing=0.0).
+
+    Requires ``student.as_of`` so the 7-day window is anchored to an explicit
+    reference timestamp rather than the current system clock.
     """
-    as_of = student.as_of or datetime.now()
+    if student.as_of is None:
+        raise ValueError(
+            "StudentFeatureInput.as_of is required for feature construction; "
+            "provide an explicit reference timestamp for the 7-day window."
+        )
+    as_of = student.as_of
 
     phq9_norm, phq9_missing = _questionnaire_features(
         student.phq9_score, PHQ9_MAX, "PHQ-9"
