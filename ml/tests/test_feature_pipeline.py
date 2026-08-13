@@ -139,3 +139,84 @@ def test_out_of_window_entries_are_excluded():
     checkins = [CheckInRecord("mood", 1, AS_OF - timedelta(days=10))]
     features = build_feature_vector(StudentFeatureInput(checkins=checkins, as_of=AS_OF))
     assert features["mood_available"] == 0.0
+
+
+def test_build_feature_vector_requires_as_of():
+    with pytest.raises(ValueError, match="as_of is required"):
+        build_feature_vector(StudentFeatureInput())
+
+
+def test_build_feature_vector_with_explicit_as_of():
+    features = build_feature_vector(StudentFeatureInput(as_of=AS_OF))
+    assert features["phq9_missing"] == 1.0
+
+
+def test_entry_exactly_seven_days_before_as_of_is_included():
+    boundary = AS_OF - timedelta(days=7)
+    checkins = [CheckInRecord("mood", 3, boundary)]
+    diary = [DiaryRecord(0.0, {}, boundary)]
+    features = build_feature_vector(
+        StudentFeatureInput(checkins=checkins, diary_entries=diary, as_of=AS_OF)
+    )
+    assert features["mood_available"] == 1.0
+    assert features["diary_available"] == 1.0
+
+
+def test_entry_after_as_of_is_excluded():
+    future = AS_OF + timedelta(hours=1)
+    checkins = [CheckInRecord("mood", 1, future)]
+    diary = [DiaryRecord(-1.0, {"sadness": 1}, future)]
+    features = build_feature_vector(
+        StudentFeatureInput(checkins=checkins, diary_entries=diary, as_of=AS_OF)
+    )
+    assert features["mood_available"] == 0.0
+    assert features["diary_available"] == 0.0
+    assert features["emotion_sadness"] == 0.0
+
+
+def test_entry_before_seven_day_window_is_excluded():
+    before_window = AS_OF - timedelta(days=7, seconds=1)
+    checkins = [CheckInRecord("sleep", 1, before_window)]
+    diary = [DiaryRecord(-0.5, {"anxiety": 1}, before_window)]
+    features = build_feature_vector(
+        StudentFeatureInput(checkins=checkins, diary_entries=diary, as_of=AS_OF)
+    )
+    assert features["sleep_available"] == 0.0
+    assert features["diary_available"] == 0.0
+    assert features["emotion_anxiety"] == 0.0
+
+
+def test_diary_aggregation_uses_timestamp_ordering():
+    entries = [
+        DiaryRecord(1.0, {}, AS_OF - timedelta(days=3)),
+        DiaryRecord(-1.0, {}, AS_OF - timedelta(days=1)),
+        DiaryRecord(0.0, {}, AS_OF - timedelta(days=2)),
+    ]
+    features = build_feature_vector(StudentFeatureInput(diary_entries=entries, as_of=AS_OF))
+    assert features["diary_sentiment_latest"] == pytest.approx(sentiment_to_risk(-1.0))
+    assert features["diary_sentiment_mean"] == pytest.approx(
+        (
+            sentiment_to_risk(1.0)
+            + sentiment_to_risk(0.0)
+            + sentiment_to_risk(-1.0)
+        )
+        / 3
+    )
+
+
+def test_checkin_aggregation_uses_timestamp_ordering():
+    checkins = [
+        CheckInRecord("mood", 5, AS_OF - timedelta(days=3)),
+        CheckInRecord("mood", 1, AS_OF - timedelta(days=1)),
+        CheckInRecord("mood", 3, AS_OF - timedelta(days=2)),
+    ]
+    features = build_feature_vector(StudentFeatureInput(checkins=checkins, as_of=AS_OF))
+    assert features["mood_latest"] == pytest.approx(normalize_checkin_value(1))
+    assert features["mood_mean"] == pytest.approx(
+        (
+            normalize_checkin_value(5)
+            + normalize_checkin_value(3)
+            + normalize_checkin_value(1)
+        )
+        / 3
+    )
